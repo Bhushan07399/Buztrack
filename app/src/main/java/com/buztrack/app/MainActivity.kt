@@ -12,11 +12,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val repository = (application as BuztrackApplication).repository
+        val app = application as BuztrackApplication
+        val repository = app.repository
+        val authRepository = app.authRepository
+        val sessionManager = app.sessionManager
 
         setContent {
             BuztrackTheme {
-                BuztrackMainApp(repository = repository)
+                BuztrackMainApp(
+                    repository = repository,
+                    authRepository = authRepository,
+                    sessionManager = sessionManager
+                )
             }
         }
     }

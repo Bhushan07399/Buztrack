@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import com.buztrack.app.data.models.Bill
 import com.buztrack.app.data.models.BillItem
 import com.buztrack.app.data.models.BusinessProfile
-import com.buztrack.app.data.models.Categories
 import com.buztrack.app.data.models.Customer
 import com.buztrack.app.data.models.DailyClosing
 import com.buztrack.app.data.models.PaymentMethod
@@ -13,20 +12,35 @@ import com.buztrack.app.data.models.Supplier
 import com.buztrack.app.data.models.TodaySummary
 import com.buztrack.app.data.models.Transaction
 import com.buztrack.app.data.models.TransactionType
+import com.buztrack.app.data.remote.dto.TransactionDto
+import com.buztrack.app.domain.repository.CashbookRepository
+import com.buztrack.app.domain.repository.CustomerRepository
+import com.buztrack.app.domain.repository.SupplierRepository
+import com.buztrack.app.domain.repository.TransactionRepository
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-class LocalBuztrackRepository private constructor(context: Context) : BuztrackRepository {
+class LocalBuztrackRepository private constructor(
+    context: Context,
+    private val networkTransactionRepo: TransactionRepository? = null,
+    private val networkCustomerRepo: CustomerRepository? = null,
+    private val networkSupplierRepo: SupplierRepository? = null,
+    private val networkCashbookRepo: CashbookRepository? = null
+) : BuztrackRepository {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("buztrack_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
+    private val repositoryScope = CoroutineScope(Dispatchers.IO)
 
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
     override val transactions: StateFlow<List<Transaction>> = _transactions.asStateFlow()
@@ -139,20 +153,17 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
 
     private fun seedDefaultDemoData() {
         val today = getTodayDateString()
-        
-        // Initial Customers
+
         val cust1 = Customer(id = "c1", name = "Rahul Patil", phone = "+91 98234 11223", totalCreditGiven = 3500.0, totalPaymentsReceived = 2000.0, pendingAmount = 1500.0, lastTransactionDate = today)
         val cust2 = Customer(id = "c2", name = "Amit Traders", phone = "+91 99887 76655", totalCreditGiven = 12000.0, totalPaymentsReceived = 8000.0, pendingAmount = 4000.0, lastTransactionDate = today)
         val cust3 = Customer(id = "c3", name = "Sneha Verma", phone = "+91 94112 33445", totalCreditGiven = 1200.0, totalPaymentsReceived = 500.0, pendingAmount = 700.0, lastTransactionDate = today)
         val defaultCustomers = listOf(cust1, cust2, cust3)
 
-        // Initial Suppliers
         val supp1 = Supplier(id = "s1", name = "ABC Traders", phone = "+91 98111 22334", totalPurchases = 25800.0, totalPaid = 10000.0, pendingAmount = 15800.0, lastPurchaseDate = today)
         val supp2 = Supplier(id = "s2", name = "XYZ Wholesale", phone = "+91 97222 33445", totalPurchases = 18500.0, totalPaid = 18500.0, pendingAmount = 0.0, lastPurchaseDate = "2026-09-15")
         val supp3 = Supplier(id = "s3", name = "PQR Distributors", phone = "+91 96333 44556", totalPurchases = 9200.0, totalPaid = 4200.0, pendingAmount = 5000.0, lastPurchaseDate = "2026-09-17")
         val defaultSuppliers = listOf(supp1, supp2, supp3)
 
-        // Initial Bills
         val bill1 = Bill(
             id = "b1",
             supplierId = "s1",
@@ -170,7 +181,6 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         val defaultBills = listOf(bill1)
 
-        // Initial Today Transactions
         val defaultTxList = mutableListOf(
             Transaction(type = TransactionType.INCOME, amount = 6300.0, category = "Sales", paymentMethod = PaymentMethod.CASH, date = today, time = "09:15 AM", note = "Morning counter cash sales"),
             Transaction(type = TransactionType.INCOME, amount = 5200.0, category = "Sales", paymentMethod = PaymentMethod.UPI, date = today, time = "11:40 AM", note = "UPI QR payments"),
@@ -230,7 +240,6 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
                     creditGivenToday += tx.amount
                 }
                 TransactionType.CUSTOMER_PAYMENT -> {
-                    // Payment received from customer adds to income/cash flow
                     incomeTotal += tx.amount
                     when (tx.paymentMethod) {
                         PaymentMethod.CASH -> cashInc += tx.amount
@@ -245,9 +254,7 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
                         cashExp += tx.amount
                     }
                 }
-                TransactionType.SUPPLIER_PURCHASE -> {
-                    // Credit purchase recorded as expense if accounted
-                }
+                TransactionType.SUPPLIER_PURCHASE -> {}
             }
         }
 
@@ -288,6 +295,22 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkTransactionRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.createTransaction(
+                    TransactionDto(
+                        id = tx.id,
+                        type = "INCOME",
+                        amount = amount,
+                        categoryName = category,
+                        paymentMethod = paymentMethod.name,
+                        transactionDate = date,
+                        note = note
+                    )
+                )
+            }
+        }
     }
 
     override suspend fun addExpense(
@@ -312,6 +335,23 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkTransactionRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.createTransaction(
+                    TransactionDto(
+                        id = tx.id,
+                        type = "EXPENSE",
+                        amount = amount,
+                        categoryName = category,
+                        paymentMethod = paymentMethod.name,
+                        transactionDate = date,
+                        note = note,
+                        billId = billId
+                    )
+                )
+            }
+        }
     }
 
     override suspend fun giveCustomerCredit(
@@ -341,6 +381,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkCustomerRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.recordCredit(customerId, amount, note, date)
+            }
+        }
     }
 
     override suspend fun receiveCustomerPayment(
@@ -371,6 +417,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkCustomerRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.recordPayment(customerId, amount, paymentMethod.name, note, date)
+            }
+        }
     }
 
     override suspend fun addCustomer(name: String, phone: String) {
@@ -382,6 +434,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _customers.value = _customers.value + newCust
         persistData()
+
+        networkCustomerRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.addCustomer(name, phone)
+            }
+        }
     }
 
     override suspend fun addSupplierPurchase(
@@ -413,6 +471,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkSupplierRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.recordPurchase(supplierId, amount, note, date)
+            }
+        }
     }
 
     override suspend fun recordSupplierPayment(
@@ -443,6 +507,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _transactions.value = listOf(tx) + _transactions.value
         persistData()
+
+        networkSupplierRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.recordPayment(supplierId, amount, paymentMethod.name, note, date)
+            }
+        }
     }
 
     override suspend fun addSupplier(name: String, phone: String) {
@@ -454,10 +524,15 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         )
         _suppliers.value = _suppliers.value + newSupp
         persistData()
+
+        networkSupplierRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.addSupplier(name, phone)
+            }
+        }
     }
 
     override suspend fun saveBill(bill: Bill, createTransaction: Boolean) {
-        // Check duplicate invoice number
         val existingBill = _bills.value.find { it.id == bill.id }
         val duplicateFound = _bills.value.any { it.invoiceNumber.equals(bill.invoiceNumber, ignoreCase = true) && it.id != bill.id }
         val finalBill = bill.copy(isDuplicate = duplicateFound)
@@ -466,12 +541,10 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
             _bills.value = _bills.value.map { if (it.id == bill.id) finalBill else it }
         } else {
             _bills.value = listOf(finalBill) + _bills.value
-            // Update scanned bills count
             val currentProf = _businessProfile.value
             _businessProfile.value = currentProf.copy(scannedBillsCount = currentProf.scannedBillsCount + 1)
         }
 
-        // Link with supplier if found or create supplier
         var supp = _suppliers.value.find { it.name.equals(bill.supplierName, ignoreCase = true) }
         if (supp == null && bill.supplierName.isNotBlank()) {
             val newSupp = Supplier(
@@ -515,6 +588,12 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
     override suspend fun deleteTransaction(transactionId: String) {
         _transactions.value = _transactions.value.filter { it.id != transactionId }
         persistData()
+
+        networkTransactionRepo?.let { repo ->
+            repositoryScope.launch {
+                repo.deleteTransaction(transactionId)
+            }
+        }
     }
 
     override suspend fun closeDay(
@@ -545,9 +624,21 @@ class LocalBuztrackRepository private constructor(context: Context) : BuztrackRe
         @Volatile
         private var INSTANCE: LocalBuztrackRepository? = null
 
-        fun getInstance(context: Context): LocalBuztrackRepository {
+        fun getInstance(
+            context: Context,
+            transactionRepository: TransactionRepository? = null,
+            customerRepository: CustomerRepository? = null,
+            supplierRepository: SupplierRepository? = null,
+            cashbookRepository: CashbookRepository? = null
+        ): LocalBuztrackRepository {
             return INSTANCE ?: synchronized(this) {
-                val instance = LocalBuztrackRepository(context.applicationContext)
+                val instance = LocalBuztrackRepository(
+                    context.applicationContext,
+                    transactionRepository,
+                    customerRepository,
+                    supplierRepository,
+                    cashbookRepository
+                )
                 INSTANCE = instance
                 instance
             }

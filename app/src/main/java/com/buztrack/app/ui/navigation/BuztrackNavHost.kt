@@ -15,8 +15,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.buztrack.app.data.repository.BuztrackRepository
+import com.buztrack.app.data.session.SessionManager
+import com.buztrack.app.domain.repository.AuthRepository
 import com.buztrack.app.ui.components.BuztrackBottomNav
 import com.buztrack.app.ui.components.NavTab
+import com.buztrack.app.ui.screens.auth.AuthViewModel
+import com.buztrack.app.ui.screens.auth.LoginScreen
+import com.buztrack.app.ui.screens.auth.RegisterScreen
+import com.buztrack.app.ui.screens.auth.SplashScreen
 import com.buztrack.app.ui.screens.bills.BillsScreen
 import com.buztrack.app.ui.screens.cashbook.CashBookScreen
 import com.buztrack.app.ui.screens.customers.CustomerDetailScreen
@@ -38,10 +44,12 @@ import com.buztrack.app.ui.screens.transactions.TransactionsViewModel
 @Composable
 fun BuztrackMainApp(
     repository: BuztrackRepository,
+    authRepository: AuthRepository,
+    sessionManager: SessionManager,
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: NavTab.HOME.route
+    val currentRoute = navBackStackEntry?.destination?.route ?: "splash"
 
     // Show bottom nav for primary tab routes
     val showBottomNav = currentRoute in listOf(
@@ -52,6 +60,7 @@ fun BuztrackMainApp(
         NavTab.MORE.route
     )
 
+    val authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory(authRepository, sessionManager))
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory(repository))
     val transactionsViewModel: TransactionsViewModel = viewModel(factory = TransactionsViewModel.Factory(repository))
     val scanBillViewModel: ScanBillViewModel = viewModel(factory = ScanBillViewModel.Factory(repository))
@@ -82,9 +91,58 @@ fun BuztrackMainApp(
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = NavTab.HOME.route,
+            startDestination = "splash",
             modifier = Modifier.padding(paddingValues)
         ) {
+            // AUTH 1: SPLASH
+            composable("splash") {
+                SplashScreen(
+                    isLoggedIn = authViewModel.isLoggedIn(),
+                    onNavigateToHome = {
+                        navController.navigate(NavTab.HOME.route) {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate("login") {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // AUTH 2: LOGIN
+            composable("login") {
+                LoginScreen(
+                    viewModel = authViewModel,
+                    onLoginSuccess = {
+                        navController.navigate(NavTab.HOME.route) {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    },
+                    onNavigateToRegister = {
+                        navController.navigate("register")
+                    }
+                )
+            }
+
+            // AUTH 3: REGISTER
+            composable("register") {
+                RegisterScreen(
+                    viewModel = authViewModel,
+                    onRegisterSuccess = {
+                        navController.navigate(NavTab.HOME.route) {
+                            popUpTo("register") { inclusive = true }
+                        }
+                    },
+                    onNavigateToLogin = {
+                        navController.navigate("login") {
+                            popUpTo("register") { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             // TAB 1: HOME
             composable(NavTab.HOME.route) {
                 HomeScreen(
@@ -123,7 +181,13 @@ fun BuztrackMainApp(
                     onNavigateToSuppliers = { navController.navigate("suppliers") },
                     onNavigateToCashBook = { navController.navigate("cashbook") },
                     onNavigateToBills = { navController.navigate("bills") },
-                    onNavigateToDailyClosing = { navController.navigate("dailyclosing") }
+                    onNavigateToDailyClosing = { navController.navigate("dailyclosing") },
+                    onLogout = {
+                        authViewModel.logout()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
 

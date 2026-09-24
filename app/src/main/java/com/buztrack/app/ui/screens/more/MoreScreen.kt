@@ -70,6 +70,7 @@ fun MoreScreen(
     onNavigateToCashBook: () -> Unit,
     onNavigateToBills: () -> Unit,
     onNavigateToDailyClosing: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -163,6 +164,10 @@ fun MoreScreen(
 
             item {
                 MenuItem(title = "Business Profile", subtitle = "GSTIN: DEMO-SAMPLE • Jaipur Shop", icon = Icons.Default.Business, onClick = { showSubscriptionSheet = true })
+            }
+
+            item {
+                MenuItem(title = "Logout", subtitle = "Sign out of your business account", icon = Icons.Default.LockClock, onClick = onLogout)
             }
 
             // GROUP 4: DEMO CONTROL

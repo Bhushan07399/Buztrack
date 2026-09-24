@@ -2,15 +2,10 @@
 .gradle
 /build
 /app/build
-/.idea/workspace.xml
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/tasks.xml
-/.idea/assetWizardSettings.xml
-/.idea/navEditor.xml
+.idea/
 .DS_Store
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
