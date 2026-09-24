@@ -136,6 +136,28 @@ fun ScanBillScreen(
                     }
                 )
             }
+            is ScanState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(text = "OCR Scan Error", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = state.message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Button(onClick = { viewModel.resetScan() }, colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)) {
+                        Text("Try Again")
+                    }
+                }
+            }
+            is ScanState.DuplicateWarning -> {
+                ExtractedBillContent(
+                    extractedBill = state.bill,
+                    onConfirmSave = { updatedBill -> viewModel.confirmAndSaveBill(updatedBill) },
+                    onRescan = { viewModel.resetScan() }
+                )
+            }
         }
     }
 }

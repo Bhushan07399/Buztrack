@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { businessRouter } from './modules/business/business.routes.js';
 import { accountsRouter } from './modules/accounts/accounts.routes.js';
@@ -12,15 +13,20 @@ import { cashbookRouter } from './modules/cashbook/cashbook.routes.js';
 import { recurringRouter } from './modules/recurring/recurring.routes.js';
 import { remindersRouter } from './modules/reminders/reminders.routes.js';
 import { reportsRouter } from './modules/reports/reports.routes.js';
+import { exportRouter } from './modules/reports/export.routes.js';
 import { subscriptionsRouter } from './modules/subscriptions/subscriptions.routes.js';
 import { paymentsRouter } from './modules/payments/payments.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export const app = express();
 
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Static file serving for uploads/attachments
+app.use('/static/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Health Check Endpoint
 app.get('/health', (_req, res) => {
@@ -45,6 +51,7 @@ apiV1.use('/bills', billsRouter);
 apiV1.use('/cashbook', cashbookRouter);
 apiV1.use('/recurring', recurringRouter);
 apiV1.use('/reminders', remindersRouter);
+apiV1.use('/reports/export', exportRouter);
 apiV1.use('/reports', reportsRouter);
 apiV1.use('/subscriptions', subscriptionsRouter);
 apiV1.use('/payments', paymentsRouter);

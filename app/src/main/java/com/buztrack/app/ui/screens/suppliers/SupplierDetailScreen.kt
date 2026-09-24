@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.buztrack.app.data.models.PaymentMethod
+import com.buztrack.app.ui.components.ExportDialogSheet
 import com.buztrack.app.ui.components.SectionHeader
 import com.buztrack.app.ui.components.TransactionRow
 import com.buztrack.app.ui.theme.DarkSlate
@@ -70,6 +71,7 @@ fun SupplierDetailScreen(
 
     var showAddPurchaseSheet by remember { mutableStateOf(false) }
     var showRecordPaymentSheet by remember { mutableStateOf(false) }
+    var showExportSheet by remember { mutableStateOf(false) }
 
     val currentSupp = supplier ?: return
 
@@ -84,19 +86,29 @@ fun SupplierDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(text = currentSupp.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Call, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = currentSupp.phone, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF94A3B8))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(text = currentSupp.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Call, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = currentSupp.phone, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF94A3B8))
+                        }
+                    }
+                }
+                Button(
+                    onClick = { showExportSheet = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(text = "Export", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -204,6 +216,16 @@ fun SupplierDetailScreen(
             onSave = { amount, method, note ->
                 viewModel.recordPayment(currentSupp.id, amount, method, note)
                 showRecordPaymentSheet = false
+            }
+        )
+    }
+
+    if (showExportSheet) {
+        ExportDialogSheet(
+            title = "Export ${currentSupp.name} Statement",
+            onDismiss = { showExportSheet = false },
+            onExportFormat = { format ->
+                showExportSheet = false
             }
         )
     }
